@@ -1,7 +1,7 @@
 //  Copyright (c) 2016-present, Rockset, Inc.  All rights reserved.
 //
-// This file defines an AWS-Kinesis environment for rocksdb.
-// A log file maps to a stream in Kinesis.
+// This file defines an Apache Kafka environment for rocksdb.
+// A log file maps to a topic in Kafka.
 //
 
 #include <cinttypes>
