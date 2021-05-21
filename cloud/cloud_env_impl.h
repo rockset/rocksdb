@@ -14,6 +14,7 @@
 namespace ROCKSDB_NAMESPACE {
 class CloudScheduler;
 class CloudStorageReadableFile;
+class ObjectLibrary;
 
 //
 // The Cloud environment
@@ -22,12 +23,14 @@ class CloudEnvImpl : public CloudEnv {
   friend class CloudEnv;
 
  public:
+  static int RegisterAwsObjects(ObjectLibrary& library, const std::string& arg);
   // Constructor
   CloudEnvImpl(const CloudEnvOptions& options, Env* base_env,
                const std::shared_ptr<Logger>& logger);
-
+  
   virtual ~CloudEnvImpl();
-
+  static const char *kName() { return "cloud-impl"; }
+  
   const CloudType& GetCloudType() const { return cloud_env_options.cloud_type; }
 
   Status NewSequentialFile(const std::string& fname,
@@ -247,7 +250,13 @@ class CloudEnvImpl : public CloudEnv {
     file_deletion_delay_ = delay;
   }
 
+  Status PrepareOptions(const ConfigOptions& config_options) override;
+  Status ValidateOptions(const DBOptions& /*db_opts*/,
+                         const ColumnFamilyOptions& /*cf_opts*/) const override;
+
  protected:
+  Status CheckValidity() const;
+  // Status TEST_Initialize(const std::string& name) override;
   // The pathname that contains a list of all db's inside a bucket.
   virtual const char* kDbIdRegistry() const { return "/.rockset/dbid/"; }
 
@@ -285,7 +294,6 @@ class CloudEnvImpl : public CloudEnv {
   // Check if options are compatible with the storage system
   virtual Status CheckOption(const EnvOptions& options);
 
-  virtual Status Prepare();
   // Converts a local pathname to an object name in the src bucket
   std::string srcname(const std::string& localname);
 

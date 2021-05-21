@@ -5,6 +5,7 @@
 #include <memory>
 #include <unordered_map>
 
+#include "rocksdb/configurable.h"
 #include "rocksdb/env.h"
 #include "rocksdb/status.h"
 
@@ -55,6 +56,7 @@ enum class AwsAccessType {
 // Credentials needed to access AWS cloud service
 class AwsCloudAccessCredentials {
  public:
+  AwsCloudAccessCredentials();
   // functions to support AWS credentials
   //
   // Initialize AWS credentials using access_key_id and secret_key
@@ -62,8 +64,6 @@ class AwsCloudAccessCredentials {
                         const std::string& aws_secret_key);
   // Initialize AWS credentials using a config file
   void InitializeConfig(const std::string& aws_config_file);
-  // Initialize credentials for tests (relies on config vars)
-  Status TEST_Initialize();
 
   // test if valid AWS credentials are present
   Status HasValid() const;
@@ -123,7 +123,14 @@ class BucketOptions {
   // If prefix is specified, the new bucket name will be [prefix][bucket]
   // If no prefix is specified, the bucket name will use the existing prefix
   void SetBucketName(const std::string& bucket, const std::string& prefix = "");
-  const std::string& GetBucketName() const { return name_; }
+  const std::string& GetBucketPrefix() const { return prefix_; }
+  const std::string& GetBucketName(bool full = true) const {
+    if (full) {
+      return name_;
+    } else {
+      return bucket_;
+    }
+  }
   const std::string& GetObjectPath() const { return object_; }
   void SetObjectPath(const std::string& object) { object_ = object; }
   const std::string& GetRegion() const { return region_; }
@@ -169,6 +176,7 @@ class AwsCloudOptions {
 class CloudEnvOptions {
  private:
  public:
+  static const char* kName() { return "CloudEnvOptions"; }
   BucketOptions src_bucket;
   BucketOptions dest_bucket;
   // Specify the type of cloud-service to use.
@@ -353,6 +361,9 @@ class CloudEnvOptions {
   void TEST_Initialize(const std::string& name_prefix,
                        const std::string& object_path,
                        const std::string& region = "");
+
+  Status Configure(const ConfigOptions& config_options, const std::string& opts_str);
+  Status Serialize(const ConfigOptions& config_options, std::string* result) const;
 };
 
 struct CheckpointToCloudOptions {
@@ -366,7 +377,7 @@ typedef std::map<std::string, std::string> DbidList;
 //
 // The Cloud environment
 //
-class CloudEnv : public Env {
+class CloudEnv : public Env, public Configurable {
  protected:
   CloudEnvOptions cloud_env_options;
   Env* base_env_;  // The underlying env
@@ -374,13 +385,22 @@ class CloudEnv : public Env {
   CloudEnv(const CloudEnvOptions& options, Env* base,
            const std::shared_ptr<Logger>& logger);
  public:
-  std::shared_ptr<Logger> info_log_;  // informational messages
+  mutable std::shared_ptr<Logger> info_log_;  // informational messages
 
   virtual ~CloudEnv();
+
+  static void RegisterCloudObjects(const std::string& mode = "");
+  static Status CreateFromString(const ConfigOptions& config_options, const std::string& id,
+                                 std::unique_ptr<CloudEnv>* env);
+  static Status CreateFromString(const ConfigOptions& config_options, const std::string& id,
+                                 const CloudEnvOptions& cloud_options,
+                                 std::unique_ptr<CloudEnv>* env);
+  virtual const char* Name() const { return kName(); }
+  static const char* kName() { return "cloud"; }
+  static const char* kAws() { return "aws"; }
+  
   // Returns the underlying env
   Env* GetBaseEnv() { return base_env_; }
-  virtual const char* Name() const { return "cloud"; }
-
   virtual Status PreloadCloudManifest(const std::string& local_dbname) = 0;
 
   // Reads a file from the cloud
@@ -402,9 +422,14 @@ class CloudEnv : public Env {
                             const std::string& dbid) = 0;
 
   Logger* GetLogger() const { return info_log_.get(); }
-  std::shared_ptr<CloudStorageProvider> GetStorageProvider() const {
+  const std::shared_ptr<CloudStorageProvider>&  GetStorageProvider() const {
     return cloud_env_options.storage_provider;
   }
+  
+  const std::shared_ptr<CloudLogController>& GetLogController() const {
+    return cloud_env_options.cloud_log_controller;
+  }
+  
   // The SrcBucketName identifies the cloud storage bucket and
   // GetSrcObjectPath specifies the path inside that bucket
   // where data files reside. The specified bucket is used in
