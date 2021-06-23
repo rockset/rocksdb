@@ -13,16 +13,22 @@
 #include <thread>
 #include <unordered_set>
 
+#include "rocksdb/env.h"
 #include "test_util/testharness.h"
 
 namespace ROCKSDB_NAMESPACE {
 
 class CloudSchedulerTest : public testing::Test {
  public:
-  CloudSchedulerTest() { scheduler_ = CloudScheduler::Get(); }
+  CloudSchedulerTest() {
+    scheduler_ = CloudScheduler::Get();
+    env_ = Env::Default();
+  }
   ~CloudSchedulerTest() {}
 
   std::shared_ptr<CloudScheduler> scheduler_;
+  Env *env_;
+  
   void WaitForJobs(const std::vector<long> &jobs, uint32_t delay) {
     bool running = true;
     while (running) {
@@ -34,7 +40,7 @@ class CloudSchedulerTest : public testing::Test {
         }
       }
       if (running) {
-        usleep(delay);
+        env_->SleepForMicroseconds(delay);
       }
     }
   }
@@ -89,14 +95,14 @@ TEST_F(CloudSchedulerTest, TestRecurring) {
                                    std::chrono::microseconds(100), doJob2,
                                    nullptr);
   while (job2 <= 4) {
-    usleep(100);
+    env_->SleepForMicroseconds(100);
   }
   ASSERT_GE(job2.load(), 4);
   ASSERT_GT(job1.load(), job2);
   ASSERT_TRUE(scheduler_->CancelJob(handle1));
   auto old1 = job1.load();
   auto old2 = job2.load();
-  usleep(200);
+  env_->SleepForMicroseconds(200);
   ASSERT_EQ(job1.load(), old1);
   ASSERT_GT(job2.load(), old2);
 }
@@ -117,7 +123,7 @@ TEST_F(CloudSchedulerTest, TestMultipleSchedulers) {
   ASSERT_FALSE(scheduler2->CancelJob(handle1));
   ASSERT_TRUE(scheduler2->CancelJob(handle2));
   ASSERT_FALSE(scheduler2->CancelJob(handle2));
-  usleep(200);
+  env_->SleepForMicroseconds(200);
   ASSERT_EQ(job1, 2);
   ASSERT_EQ(job2, 1);
 
@@ -130,7 +136,7 @@ TEST_F(CloudSchedulerTest, TestMultipleSchedulers) {
   scheduler2.reset();
   auto old1 = job1.load();
   auto old2 = job2.load();
-  usleep(200);
+  env_->SleepForMicroseconds(200);
   ASSERT_EQ(job2, old2);
   ASSERT_GT(job1, old1);
 }

@@ -125,7 +125,7 @@ Status AwsCloudOptions::GetClientConfiguration(
   // Setup how retries need to be done
   config->retryStrategy = std::make_shared<AwsRetryStrategy>(env);
   if (cloud_env_options.request_timeout_ms != 0) {
-    config->requestTimeoutMs = cloud_env_options.request_timeout_ms;
+    config->requestTimeoutMs = static_cast<long>(cloud_env_options.request_timeout_ms);
   }
 
   config->region = ToAwsString(region);

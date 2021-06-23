@@ -4,6 +4,7 @@
 #include "cloud/purge.h"
 
 #include <chrono>
+#include <ctime>
 #include <set>
 
 #include "cloud/db_cloud_impl.h"
@@ -15,6 +16,7 @@
 #include "rocksdb/env.h"
 #include "rocksdb/options.h"
 #include "rocksdb/status.h"
+#include "util/random.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -186,6 +188,38 @@ Status CloudEnvImpl::FindObsoleteDbid(
   return st;
 }
 
+std::string CloudEnvImpl::GetScratchDirectory() const {
+  const char* env = getenv("TMPDIR");
+  if (env != nullptr) {
+    return std::string(env);
+  } else {
+#ifdef _WIN32
+    env = getenv("TEMP");
+    if (env == nullptr) {
+      env = getenv("TMP");
+    }
+    if (env != nullptr) {
+      return std::string(env);
+    } else {
+      return "c:\\tmp";
+    }
+#else
+    return "/tmp";
+#endif
+  }
+}
+
+std::string CloudEnvImpl::GetScratchFile() const {
+  int64_t current_time = 0;
+  auto s = base_env_->GetCurrentTime(&current_time);
+  if (!s.ok()) {
+    current_time = static_cast<int64_t>(std::time(0));
+  }
+  Random rand(static_cast<uint32_t>(current_time));
+  const std::string scratch = GetScratchDirectory();
+  return TempFileName(scratch, rand.Next());
+}
+
 //
 // For each of the dbids in the list, extract the entire list of
 // parent dbids.
@@ -193,15 +227,11 @@ Status CloudEnvImpl::extractParents(const std::string& bucket_name_prefix,
                                     const DbidList& dbid_list,
                                     DbidParents* parents) {
   const std::string delimiter(DBID_SEPARATOR);
-  // use current time as seed for random generator
-  std::srand(static_cast<unsigned int>(std::time(0)));
-  const std::string random = std::to_string(std::rand());
-  const std::string scratch(SCRATCH_LOCAL_DIR);
+  auto localfile = GetScratchFile();
   Status st;
   for (auto iter = dbid_list.begin(); iter != dbid_list.end(); ++iter) {
     // download IDENTITY
     std::string cloudfile = iter->second + "/IDENTITY";
-    std::string localfile = scratch + "/.rockset_IDENTITY." + random;
     st = GetStorageProvider()->GetCloudObject(bucket_name_prefix, cloudfile,
                                               localfile);
     if (!st.ok() && !st.IsNotFound()) {

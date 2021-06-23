@@ -119,6 +119,11 @@ class BucketOptions {
   std::string region_;  // The region for the bucket
   std::string name_;    // The name of the bucket (prefix_ + bucket_)
  public:
+  // Attempts to normalize the input path, removing any special or illegal
+  // characters Returns OK if the path was normalized, non-OK if the path could
+  // not be normalized
+  static Status NormalizeObjectPath(const std::string& path,
+                                    std::string* normalized);
   BucketOptions();
   // Sets the name of the bucket to be the new bucket name.
   // If prefix is specified, the new bucket name will be [prefix][bucket]
@@ -126,7 +131,7 @@ class BucketOptions {
   void SetBucketName(const std::string& bucket, const std::string& prefix = "");
   const std::string& GetBucketName() const { return name_; }
   const std::string& GetObjectPath() const { return object_; }
-  void SetObjectPath(const std::string& object) { object_ = object; }
+  Status SetObjectPath(const std::string& object);
   const std::string& GetRegion() const { return region_; }
   void SetRegion(const std::string& region) { region_ = region; }
 

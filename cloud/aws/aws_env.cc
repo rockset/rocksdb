@@ -50,6 +50,9 @@ AwsAccessType AwsCloudAccessCredentials::GetAccessType() const {
     return AwsAccessType::kConfig;
   } else if (!access_key_id.empty() || !secret_key.empty()) {
     return AwsAccessType::kSimple;
+  } else if (getenv("AWS_ACCESS_KEY_ID") != nullptr &&
+             getenv("AWS_SECRET_ACCESS_KEY") != nullptr) {
+    return AwsAccessType::kEnvironment;
   }
   return AwsAccessType::kUndefined;
 }
@@ -161,6 +164,7 @@ Status AwsCloudAccessCredentials::GetCredentialsProvider(
 }
 
 #ifdef USE_AWS
+static Aws::SDKOptions sdkOptions;
 
 //
 // The AWS credentials are specified to the constructor via
@@ -169,7 +173,8 @@ Status AwsCloudAccessCredentials::GetCredentialsProvider(
 AwsEnv::AwsEnv(Env* underlying_env, const CloudEnvOptions& _cloud_env_options,
                const std::shared_ptr<Logger>& info_log)
     : CloudEnvImpl(_cloud_env_options, underlying_env, info_log) {
-  Aws::InitAPI(Aws::SDKOptions());
+  Aws::InitAPI(sdkOptions);  //**TODO: Move this into PrepareOptions and do it
+                             // conditionally (first time)
   if (cloud_env_options.src_bucket.GetRegion().empty() ||
       cloud_env_options.dest_bucket.GetRegion().empty()) {
     std::string region;
@@ -187,7 +192,11 @@ AwsEnv::AwsEnv(Env* underlying_env, const CloudEnvOptions& _cloud_env_options,
   base_env_ = underlying_env;
 }
 
-void AwsEnv::Shutdown() { Aws::ShutdownAPI(Aws::SDKOptions()); }
+AwsEnv::~AwsEnv() {
+  //**TODO: Conditionally call shutdown (or make shutdown conditional on last...
+}
+
+void AwsEnv::Shutdown() { Aws::ShutdownAPI(sdkOptions); }
 
 
 // The factory method for creating an S3 Env

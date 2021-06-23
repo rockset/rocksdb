@@ -877,7 +877,7 @@ std::string CloudEnvImpl::RemapFilename(const std::string& logical_path) const {
     return logical_path;
   }
   auto file_name = basename(logical_path);
-  uint64_t fileNumber;
+  uint64_t fileNumber = 0;
   FileType type;
   WalFileType walType;
   if (file_name == "MANIFEST") {

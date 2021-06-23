@@ -49,7 +49,7 @@ class AwsEnv : public CloudEnvImpl {
                           const std::shared_ptr<Logger>& info_log,
                           CloudEnv** cenv);
 
-  virtual ~AwsEnv() {}
+  virtual ~AwsEnv();
 
   const char* Name() const override { return "aws"; }
 
